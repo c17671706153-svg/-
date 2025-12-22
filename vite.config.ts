@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -18,10 +17,6 @@ export default defineConfig({
     sourcemap: false, // 生产环境禁用sourcemap以减小文件大小
     minify: 'terser', // 使用Terser进行更好的压缩
     rollupOptions: {
-      input: {
-        main: path.resolve(__dirname, 'index.html'),
-        export: path.resolve(__dirname, 'index-export.html')
-      },
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
