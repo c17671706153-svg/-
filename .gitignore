@@ -60,3 +60,7 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+deployment-package/
+temp-deployment/
+github-setup-instructions.sh
+manual-deploy.sh
