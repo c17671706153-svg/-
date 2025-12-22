@@ -1,0 +1,11 @@
+{
+  "appId": "com.christmas-tree.app",
+  "productName": "Christmas Tree Interactive Album",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*"
+  ]
+}

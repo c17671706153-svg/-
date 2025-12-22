@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>圣诞快乐</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Playfair+Display:ital,wght@0,400;1,400&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #000502;
+        overflow: hidden;
+        font-family: 'Playfair Display', serif;
+      }
+      
+      canvas {
+        touch-action: none;
+      }
+
+      ::-webkit-scrollbar {
+        width: 0px;
+        background: transparent;
+      }
+    </style>
+    <script>
+      // Embedded photos and music data will be injected here by export function
+      window.EMBEDDED_PHOTOS = [];
+      window.EMBEDDED_MUSIC = null;
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index-export.tsx"></script>
+  </body>
+</html>
+
