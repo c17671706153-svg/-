@@ -5,9 +5,10 @@ import { AppState } from '../types';
 interface GestureControllerProps {
     setAppState: (state: AppState) => void;
     onPinch?: () => void;
+    onPoint?: () => void;
 }
 
-export const GestureController: React.FC<GestureControllerProps> = ({ setAppState, onPinch }) => {
+export const GestureController: React.FC<GestureControllerProps> = ({ setAppState, onPinch, onPoint }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [recognizer, setRecognizer] = useState<GestureRecognizer | null>(null);
     const [isLoaded, setIsLoaded] = useState(false);
@@ -62,6 +63,7 @@ export const GestureController: React.FC<GestureControllerProps> = ({ setAppStat
     }, [isLoaded]);
 
     const lastPinchTimeRef = useRef<number>(0);
+    const lastPointTimeRef = useRef<number>(0);
 
     const predict = () => {
         if (videoRef.current && recognizer) {
@@ -71,7 +73,15 @@ export const GestureController: React.FC<GestureControllerProps> = ({ setAppStat
             if (results.gestures.length > 0) {
                 const gesture = results.gestures[0][0];
                 if (gesture.score > 0.6) {
-                    handleGesture(gesture.categoryName);
+                    if (gesture.categoryName === 'Pointing_Up') {
+                        const now = Date.now();
+                        if (now - lastPointTimeRef.current > 2000) {
+                            if (onPoint) onPoint();
+                            lastPointTimeRef.current = now;
+                        }
+                    } else {
+                        handleGesture(gesture.categoryName);
+                    }
                 }
             }
 

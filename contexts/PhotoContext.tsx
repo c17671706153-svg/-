@@ -12,6 +12,8 @@ interface PhotoContextType {
   photos: PhotoData[];
   selectedPhoto: PhotoData | null;
   highlightedPhotoId: string | null;
+  scatterFlowAt: number | null;
+  treeSpotlight: TreeSpotlight | null;
   addPhotos: (files: File[]) => Promise<void>;
   removePhoto: (id: string) => void;
   updatePhotoNote: (id: string, note: string) => void;
@@ -19,6 +21,8 @@ interface PhotoContextType {
   clearPhotos: () => void;
   selectPhoto: (photo: PhotoData | null) => void;
   highlightRandomPhoto: () => void;
+  triggerScatterFlow: () => void;
+  triggerTreeSpotlight: () => void;
 }
 
 const PhotoContext = createContext<PhotoContextType | undefined>(undefined);
@@ -87,6 +91,12 @@ interface PhotoProviderProps {
   initialPhotos?: PhotoData[];
 }
 
+interface TreeSpotlight {
+  photoId: string;
+  flip: boolean;
+  startedAt: number;
+}
+
 export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialPhotos }) => {
   const [photos, setPhotos] = useState<PhotoData[]>(() => {
     // Use initialPhotos if provided, otherwise empty array
@@ -94,6 +104,8 @@ export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialP
   });
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoData | null>(null);
   const [highlightedPhotoId, setHighlightedPhotoId] = useState<string | null>(null);
+  const [scatterFlowAt, setScatterFlowAt] = useState<number | null>(null);
+  const [treeSpotlight, setTreeSpotlight] = useState<TreeSpotlight | null>(null);
 
   // Load photos from localStorage on mount (only if no initial photos provided)
   useEffect(() => {
@@ -211,12 +223,41 @@ export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialP
     }, 5000);
   };
 
+  const triggerScatterFlow = () => {
+    if (photos.length === 0) return;
+    const startedAt = Date.now();
+    setScatterFlowAt(startedAt);
+    setTimeout(() => {
+      setScatterFlowAt((current) => (current === startedAt ? null : current));
+    }, 2600);
+  };
+
+  const triggerTreeSpotlight = () => {
+    if (photos.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * photos.length);
+    const shouldFlip = Math.random() < 0.02;
+    const startedAt = Date.now();
+    const nextSpotlight: TreeSpotlight = {
+      photoId: photos[randomIndex].id,
+      flip: shouldFlip,
+      startedAt,
+    };
+    setTreeSpotlight(nextSpotlight);
+    setTimeout(() => {
+      setTreeSpotlight((current) =>
+        current?.photoId === nextSpotlight.photoId && current?.startedAt === startedAt ? null : current
+      );
+    }, 3500);
+  };
+
   return (
     <PhotoContext.Provider
       value={{
         photos,
         selectedPhoto,
         highlightedPhotoId,
+        scatterFlowAt,
+        treeSpotlight,
         addPhotos,
         removePhoto,
         updatePhotoNote,
@@ -224,6 +265,8 @@ export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialP
         clearPhotos,
         selectPhoto,
         highlightRandomPhoto,
+        triggerScatterFlow,
+        triggerTreeSpotlight,
       }}
     >
       {children}
@@ -238,4 +281,3 @@ export const usePhotos = (): PhotoContextType => {
   }
   return context;
 };
-

@@ -30,7 +30,7 @@ function AppContent() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isElectron, setIsElectron] = useState(false);
   const { toggleMusic } = useMusic();
-  const { highlightRandomPhoto } = usePhotos();
+  const { highlightRandomPhoto, triggerScatterFlow, triggerTreeSpotlight } = usePhotos();
 
   useEffect(() => {
     // 检测是否在Electron环境中运行
@@ -43,6 +43,14 @@ function AppContent() {
 
   const handleStarMusicToggle = () => {
     toggleMusic();
+  };
+
+  const handlePointingUp = () => {
+    if (appState === AppState.SCATTERED) {
+      triggerScatterFlow();
+      return;
+    }
+    triggerTreeSpotlight();
   };
 
   return (
@@ -58,6 +66,7 @@ function AppContent() {
       <GestureController
         setAppState={setAppState}
         onPinch={highlightRandomPhoto}
+        onPoint={handlePointingUp}
       />
       <Overlay
         currentState={appState}

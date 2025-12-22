@@ -15,10 +15,12 @@ interface PhotoProps {
 }
 
 const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState }) => {
-  const { selectPhoto, photos } = usePhotos();
+  const { selectPhoto, photos, scatterFlowAt, treeSpotlight, highlightedPhotoId } = usePhotos();
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const [error, setError] = useState(false);
   const FLIP_PROBABILITY_SCATTERED = 0.1; // 10% chance to show the back side in scattered mode
+  const SCATTER_FLOW_DURATION = 2600;
+  const TREE_SPOTLIGHT_DURATION = 3500;
 
   useEffect(() => {
     const loader = new THREE.TextureLoader();
@@ -43,6 +45,13 @@ const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState 
     };
   }, [dataUrl]);
   const groupRef = useRef<THREE.Group>(null);
+  const flowSeed = useMemo(
+    () => ({
+      phase: Math.random() * Math.PI * 2,
+      drift: (Math.random() - 0.5) * 0.8,
+    }),
+    []
+  );
 
   // Pre-calculate positions and random flip
   const { scatterPos, scatterRot, treePos, treeRot } = useMemo(() => {
@@ -122,14 +131,16 @@ const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState 
   const scaleRef = useRef<THREE.Group>(null);
 
   // Is this photo currently highlighted?
-  const { highlightedPhotoId } = usePhotos();
   const isHighlighted = highlightedPhotoId === photoId;
+  const spotlight = treeSpotlight?.photoId === photoId ? treeSpotlight : null;
 
   useFrame((state, delta) => {
     if (!groupRef.current || !scaleRef.current) return;
 
     const target = appState === AppState.TREE_SHAPE ? 1 : 0;
     progress.current = THREE.MathUtils.lerp(progress.current, target, delta * 2);
+
+    const now = Date.now();
 
     // Add floating motion - more pronounced in CHAOS mode for photo wall effect
     const time = state.clock.getElapsedTime();
@@ -144,7 +155,16 @@ const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState 
     const floatOffset = new THREE.Vector3(floatX, floatY, floatZ);
 
     // HIGHLIGHT LOGIC override
-    let finalScatterPos = scatterPos.clone().add(floatOffset);
+    const scatterFlowProgress = scatterFlowAt && appState === AppState.SCATTERED
+      ? Math.min((now - scatterFlowAt) / SCATTER_FLOW_DURATION, 1)
+      : 0;
+    const scatterFlowWave = Math.sin(scatterFlowProgress * Math.PI);
+    const scatterFlowOffset = new THREE.Vector3(
+      Math.cos(flowSeed.phase + scatterFlowProgress * Math.PI * 4) * scatterFlowWave * 1.2,
+      Math.sin(flowSeed.phase + scatterFlowProgress * Math.PI * 3) * scatterFlowWave * 0.8,
+      scatterFlowWave * 3.5 + Math.sin(flowSeed.phase + scatterFlowProgress * Math.PI * 2) * scatterFlowWave * 1.5
+    );
+    let finalScatterPos = scatterPos.clone().add(floatOffset).add(scatterFlowOffset);
     let targetScale = THREE.MathUtils.lerp(1.7, 1.0, progress.current);
 
     if (isHighlighted && appState === AppState.SCATTERED) {
@@ -154,15 +174,30 @@ const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState 
       targetScale = 3.5; // 3x amplification (approx from 1.0 base, or relative to 1.7)
     }
 
+    let treePosWithSpotlight = treePos;
+    let treeRotTarget = treeRot;
+    if (spotlight && appState === AppState.TREE_SHAPE) {
+      const spotlightProgress = Math.min((now - spotlight.startedAt) / TREE_SPOTLIGHT_DURATION, 1);
+      const spotlightWave = Math.sin(spotlightProgress * Math.PI);
+      const cameraDir = new THREE.Vector3()
+        .subVectors(state.camera.position, treePos)
+        .normalize();
+      treePosWithSpotlight = treePos.clone().add(cameraDir.multiplyScalar(spotlightWave * 6));
+      if (spotlight.flip) {
+        treeRotTarget = new THREE.Euler(treeRot.x, treeRot.y + Math.PI, treeRot.z);
+      }
+      targetScale = Math.max(targetScale, 1.0 + spotlightWave * 1.8);
+    }
+
     // Interpolate Position (from floating scatter to tree)
-    groupRef.current.position.lerpVectors(finalScatterPos, treePos, progress.current);
+    groupRef.current.position.lerpVectors(finalScatterPos, treePosWithSpotlight, progress.current);
 
     // Interpolate Rotation with floating tilt
     // Note: scatterRot already includes the flip if isFlipped is true
     const floatRotZ = Math.sin(time * 0.2 + index) * 0.1 * (1 - progress.current);
     const currentRot = new THREE.Euler().setFromVector3(
       new THREE.Vector3(scatterRot.x, scatterRot.y, scatterRot.z + floatRotZ).lerp(
-        new THREE.Vector3(treeRot.x, treeRot.y, treeRot.z),
+        new THREE.Vector3(treeRotTarget.x, treeRotTarget.y, treeRotTarget.z),
         progress.current
       )
     );
