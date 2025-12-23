@@ -10,11 +10,11 @@ export const COLORS = {
 
 // Particle Counts
 export const NEEDLE_COUNT = 4000;
-export const ORNAMENT_COUNT = 150;
-export const SNOWFLAKE_COUNT = 600;
-export const STOCKING_COUNT = 15;
-export const CANDY_COUNT = 20;
-export const GIFT_COUNT = 15;
+export const ORNAMENT_COUNT = 50;
+export const SNOWFLAKE_COUNT = 1200;
+export const STOCKING_COUNT = 10;
+export const CANDY_COUNT = 13;
+export const GIFT_COUNT = 10;
 
 // Geometry Settings
 export const TREE_HEIGHT = 14;

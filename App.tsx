@@ -30,7 +30,7 @@ function AppContent() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isElectron, setIsElectron] = useState(false);
   const { toggleMusic } = useMusic();
-  const { highlightRandomPhoto, triggerScatterFlow, triggerTreeSpotlight } = usePhotos();
+  const { highlightRandomPhoto, setOneFingerActive, setTwoFingerActive } = usePhotos();
 
   useEffect(() => {
     // 检测是否在Electron环境中运行
@@ -45,12 +45,22 @@ function AppContent() {
     toggleMusic();
   };
 
-  const handlePointingUp = () => {
-    if (appState === AppState.SCATTERED) {
-      triggerScatterFlow();
-      return;
-    }
-    triggerTreeSpotlight();
+  const handleOneFingerStart = () => {
+    setOneFingerActive(true);
+  };
+
+  const handleOneFingerEnd = () => {
+    setOneFingerActive(false);
+  };
+
+  const handleTwoFingerStart = () => {
+    console.debug('[two-finger] start');
+    setTwoFingerActive(true);
+  };
+
+  const handleTwoFingerEnd = () => {
+    console.debug('[two-finger] end');
+    setTwoFingerActive(false);
   };
 
   return (
@@ -66,7 +76,10 @@ function AppContent() {
       <GestureController
         setAppState={setAppState}
         onPinch={highlightRandomPhoto}
-        onPoint={handlePointingUp}
+        onOneFingerStart={handleOneFingerStart}
+        onOneFingerEnd={handleOneFingerEnd}
+        onTwoFingerStart={handleTwoFingerStart}
+        onTwoFingerEnd={handleTwoFingerEnd}
       />
       <Overlay
         currentState={appState}
@@ -79,7 +92,7 @@ function AppContent() {
         gl={{
           antialias: false,
           toneMapping: 3, // THREE.ReinhardToneMapping
-          toneMappingExposure: 1.5
+          toneMappingExposure: 1.7
         }}
       >
         <color attach="background" args={[COLORS.bg]} />

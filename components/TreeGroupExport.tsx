@@ -49,7 +49,7 @@ export const TreeGroupExport: React.FC<TreeGroupExportProps> = ({ appState }) =>
         type="ornament" 
         color={COLORS.gold} 
         emissive={COLORS.goldDark}
-        emissiveIntensity={0.5}
+        emissiveIntensity={0.8}
       />
 
       {/* Polaroid Photo Gallery - same as normal version */}
@@ -57,4 +57,3 @@ export const TreeGroupExport: React.FC<TreeGroupExportProps> = ({ appState }) =>
     </group>
   );
 };
-

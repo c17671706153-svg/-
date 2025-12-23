@@ -5,13 +5,17 @@ import { AppState } from '../types';
 interface GestureControllerProps {
     setAppState: (state: AppState) => void;
     onPinch?: () => void;
-    onPoint?: () => void;
+    onOneFingerStart?: () => void;
+    onOneFingerEnd?: () => void;
+    onTwoFingerStart?: () => void;
+    onTwoFingerEnd?: () => void;
 }
 
-export const GestureController: React.FC<GestureControllerProps> = ({ setAppState, onPinch, onPoint }) => {
+export const GestureController: React.FC<GestureControllerProps> = ({ setAppState, onPinch, onOneFingerStart, onOneFingerEnd, onTwoFingerStart, onTwoFingerEnd }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [recognizer, setRecognizer] = useState<GestureRecognizer | null>(null);
     const [isLoaded, setIsLoaded] = useState(false);
+    const [debugText, setDebugText] = useState('Waiting...');
     const requestRef = useRef<number>();
     const lastStateRef = useRef<AppState | null>(null);
 
@@ -63,26 +67,77 @@ export const GestureController: React.FC<GestureControllerProps> = ({ setAppStat
     }, [isLoaded]);
 
     const lastPinchTimeRef = useRef<number>(0);
-    const lastPointTimeRef = useRef<number>(0);
+    const lastOneFingerActiveRef = useRef(false);
+    const lastTwoFingerActiveRef = useRef(false);
+
+    const isOneFingerUp = (landmarks: Array<{ x: number; y: number; z?: number }>) => {
+        const wrist = landmarks[0];
+        const indexTip = landmarks[8];
+        const indexPip = landmarks[6];
+        const indexMcp = landmarks[5];
+        const middleTip = landmarks[12];
+        const middlePip = landmarks[10];
+        const ringTip = landmarks[16];
+        const ringPip = landmarks[14];
+        const pinkyTip = landmarks[20];
+        const pinkyPip = landmarks[18];
+
+        if (!wrist || !indexTip || !indexPip || !indexMcp || !middleTip || !middlePip || !ringTip || !ringPip || !pinkyTip || !pinkyPip) {
+            return false;
+        }
+
+        const palmSize = Math.hypot(indexMcp.x - wrist.x, indexMcp.y - wrist.y) || 0.2;
+        const extendThreshold = palmSize * 0.08;
+        const curlThreshold = palmSize * 0.02;
+
+        const indexExtended = indexTip.y < indexPip.y - extendThreshold && indexPip.y < indexMcp.y - extendThreshold;
+        const middleCurled = middleTip.y > middlePip.y - curlThreshold;
+        const ringCurled = ringTip.y > ringPip.y - curlThreshold;
+        const pinkyCurled = pinkyTip.y > pinkyPip.y - curlThreshold;
+
+        return indexExtended && middleCurled && ringCurled && pinkyCurled;
+    };
+
+    const isTwoFingerUp = (landmarks: Array<{ x: number; y: number; z?: number }>) => {
+        const wrist = landmarks[0];
+        const indexTip = landmarks[8];
+        const indexPip = landmarks[6];
+        const indexMcp = landmarks[5];
+        const middleTip = landmarks[12];
+        const middlePip = landmarks[10];
+        const middleMcp = landmarks[9];
+        const ringTip = landmarks[16];
+        const ringPip = landmarks[14];
+        const pinkyTip = landmarks[20];
+        const pinkyPip = landmarks[18];
+
+        if (!wrist || !indexTip || !indexPip || !indexMcp || !middleTip || !middlePip || !middleMcp || !ringTip || !ringPip || !pinkyTip || !pinkyPip) {
+            return false;
+        }
+
+        const palmSize = Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y) || 0.2;
+        const extendThreshold = palmSize * 0.08;
+        const curlThreshold = palmSize * 0.02;
+
+        const indexExtended = indexTip.y < indexPip.y - extendThreshold && indexPip.y < indexMcp.y - extendThreshold;
+        const middleExtended = middleTip.y < middlePip.y - extendThreshold && middlePip.y < middleMcp.y - extendThreshold;
+        const ringCurled = ringTip.y > ringPip.y - curlThreshold;
+        const pinkyCurled = pinkyTip.y > pinkyPip.y - curlThreshold;
+
+        return indexExtended && middleExtended && ringCurled && pinkyCurled;
+    };
 
     const predict = () => {
         if (videoRef.current && recognizer) {
             let nowInMs = Date.now();
             const results = recognizer.recognizeForVideo(videoRef.current, nowInMs);
+            let gestureLabel = 'None';
+            let gestureScore = 0;
 
             if (results.gestures.length > 0) {
                 const gesture = results.gestures[0][0];
-                if (gesture.score > 0.6) {
-                    if (gesture.categoryName === 'Pointing_Up') {
-                        const now = Date.now();
-                        if (now - lastPointTimeRef.current > 2000) {
-                            if (onPoint) onPoint();
-                            lastPointTimeRef.current = now;
-                        }
-                    } else {
-                        handleGesture(gesture.categoryName);
-                    }
-                }
+                gestureLabel = gesture.categoryName;
+                gestureScore = gesture.score;
             }
 
             // Pinch Detection (Thumb Tip [4] vs Index Finger Tip [8])
@@ -90,6 +145,9 @@ export const GestureController: React.FC<GestureControllerProps> = ({ setAppStat
                 const landmarks = results.landmarks[0];
                 const thumbTip = landmarks[4];
                 const indexTip = landmarks[8];
+                const oneFingerUp = isOneFingerUp(landmarks);
+                const classifierTwoFinger = (gestureLabel === 'Victory' || gestureLabel === 'Peace') && gestureScore > 0.4;
+                const twoFingerUp = isTwoFingerUp(landmarks) || classifierTwoFinger;
 
                 // Calculate Euclidean distance (using 3D coordinates if available, here approximated with x/y)
                 // MediaPipe returns normalized [0,1] coordinates.
@@ -108,6 +166,40 @@ export const GestureController: React.FC<GestureControllerProps> = ({ setAppStat
                         lastPinchTimeRef.current = now;
                     }
                 }
+
+                if (oneFingerUp !== lastOneFingerActiveRef.current) {
+                    lastOneFingerActiveRef.current = oneFingerUp;
+                    if (oneFingerUp) {
+                        if (onOneFingerStart) onOneFingerStart();
+                    } else if (onOneFingerEnd) {
+                        onOneFingerEnd();
+                    }
+                }
+
+                if (twoFingerUp !== lastTwoFingerActiveRef.current) {
+                    lastTwoFingerActiveRef.current = twoFingerUp;
+                    if (twoFingerUp) {
+                        if (onTwoFingerStart) onTwoFingerStart();
+                    } else if (onTwoFingerEnd) {
+                        onTwoFingerEnd();
+                    }
+                }
+
+                if (!twoFingerUp && gestureScore > 0.6) {
+                    handleGesture(gestureLabel);
+                }
+
+                setDebugText(`Gesture: ${gestureLabel} (${gestureScore.toFixed(2)}) | Two-finger: ${twoFingerUp ? 'Yes' : 'No'} | Pinch: ${distance < 0.05 ? 'Yes' : 'No'}`);
+            } else {
+                if (lastOneFingerActiveRef.current) {
+                    lastOneFingerActiveRef.current = false;
+                    if (onOneFingerEnd) onOneFingerEnd();
+                }
+                if (lastTwoFingerActiveRef.current) {
+                    lastTwoFingerActiveRef.current = false;
+                    if (onTwoFingerEnd) onTwoFingerEnd();
+                }
+                setDebugText(`Gesture: ${gestureLabel} (${gestureScore.toFixed(2)}) | No hand`);
             }
         }
         requestRef.current = requestAnimationFrame(predict);
@@ -165,6 +257,21 @@ export const GestureController: React.FC<GestureControllerProps> = ({ setAppStat
             }}>
                 Loading AI...
             </div>}
+            <div style={{
+                position: 'absolute',
+                left: '6px',
+                right: '6px',
+                bottom: '6px',
+                fontSize: '10px',
+                lineHeight: 1.2,
+                color: '#ffffff',
+                background: 'rgba(0,0,0,0.4)',
+                padding: '4px 6px',
+                borderRadius: '6px',
+                transform: 'scaleX(-1)' // Unmirror text
+            }}>
+                {debugText}
+            </div>
         </div>
     );
 };

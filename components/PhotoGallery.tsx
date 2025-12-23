@@ -12,15 +12,21 @@ interface PhotoProps {
   index: number;
   total: number;
   appState: AppState;
+  twoFingerActive: boolean;
+  twoFingerPhotoId: string | null;
+  twoFingerFlip: boolean;
 }
 
-const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState }) => {
-  const { selectPhoto, photos, scatterFlowAt, treeSpotlight, highlightedPhotoId } = usePhotos();
+const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState, twoFingerActive, twoFingerPhotoId, twoFingerFlip }) => {
+  const { selectPhoto, photos, scatterFlowAt, treeSpotlight, highlightedPhotoId, oneFingerActive } = usePhotos();
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const [error, setError] = useState(false);
   const FLIP_PROBABILITY_SCATTERED = 0.1; // 10% chance to show the back side in scattered mode
   const SCATTER_FLOW_DURATION = 2600;
   const TREE_SPOTLIGHT_DURATION = 3500;
+  const ONE_FINGER_SCATTER_AMPLITUDE = 7.5;
+  const TWO_FINGER_CENTER_SCALE = 2.0;
+  const TWO_FINGER_CENTER_DISTANCE = 18.0;
 
   useEffect(() => {
     const loader = new THREE.TextureLoader();
@@ -133,6 +139,7 @@ const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState 
   // Is this photo currently highlighted?
   const isHighlighted = highlightedPhotoId === photoId;
   const spotlight = treeSpotlight?.photoId === photoId ? treeSpotlight : null;
+  const isTwoFingerSelected = twoFingerActive && twoFingerPhotoId === photoId;
 
   useFrame((state, delta) => {
     if (!groupRef.current || !scaleRef.current) return;
@@ -164,7 +171,14 @@ const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState 
       Math.sin(flowSeed.phase + scatterFlowProgress * Math.PI * 3) * scatterFlowWave * 0.8,
       scatterFlowWave * 3.5 + Math.sin(flowSeed.phase + scatterFlowProgress * Math.PI * 2) * scatterFlowWave * 1.5
     );
-    let finalScatterPos = scatterPos.clone().add(floatOffset).add(scatterFlowOffset);
+    const oneFingerOffset = oneFingerActive && appState === AppState.SCATTERED
+      ? new THREE.Vector3(
+        Math.sin(time * 1.1 + flowSeed.phase) * ONE_FINGER_SCATTER_AMPLITUDE,
+        Math.cos(time * 0.9 + flowSeed.phase * 0.7) * ONE_FINGER_SCATTER_AMPLITUDE * 0.6,
+        Math.sin(time * 0.8 + flowSeed.phase * 1.3) * ONE_FINGER_SCATTER_AMPLITUDE * 0.9
+      )
+      : new THREE.Vector3(0, 0, 0);
+    let finalScatterPos = scatterPos.clone().add(floatOffset).add(scatterFlowOffset).add(oneFingerOffset);
     let targetScale = THREE.MathUtils.lerp(1.7, 1.0, progress.current);
 
     if (isHighlighted && appState === AppState.SCATTERED) {
@@ -176,32 +190,49 @@ const Photo: React.FC<PhotoProps> = ({ photoId, dataUrl, index, total, appState 
 
     let treePosWithSpotlight = treePos;
     let treeRotTarget = treeRot;
-    if (spotlight && appState === AppState.TREE_SHAPE) {
-      const spotlightProgress = Math.min((now - spotlight.startedAt) / TREE_SPOTLIGHT_DURATION, 1);
-      const spotlightWave = Math.sin(spotlightProgress * Math.PI);
-      const cameraDir = new THREE.Vector3()
-        .subVectors(state.camera.position, treePos)
-        .normalize();
-      treePosWithSpotlight = treePos.clone().add(cameraDir.multiplyScalar(spotlightWave * 6));
-      if (spotlight.flip) {
-        treeRotTarget = new THREE.Euler(treeRot.x, treeRot.y + Math.PI, treeRot.z);
+    const parent = groupRef.current.parent;
+
+    if (isTwoFingerSelected && appState === AppState.TREE_SHAPE && parent) {
+      const cameraDir = new THREE.Vector3();
+      state.camera.getWorldDirection(cameraDir);
+      const desiredWorld = state.camera.position.clone().add(cameraDir.multiplyScalar(TWO_FINGER_CENTER_DISTANCE));
+      const localTarget = parent.worldToLocal(desiredWorld.clone());
+      groupRef.current.position.lerp(localTarget, delta * 8);
+      groupRef.current.lookAt(state.camera.position);
+      groupRef.current.rotation.x = 0;
+      groupRef.current.rotation.z = 0;
+      if (twoFingerFlip) {
+        groupRef.current.rotation.y += Math.PI;
       }
-      targetScale = Math.max(targetScale, 1.0 + spotlightWave * 1.8);
+      targetScale = Math.max(targetScale, TWO_FINGER_CENTER_SCALE);
+    } else {
+      if (spotlight && appState === AppState.TREE_SHAPE) {
+        const spotlightProgress = Math.min((now - spotlight.startedAt) / TREE_SPOTLIGHT_DURATION, 1);
+        const spotlightWave = Math.sin(spotlightProgress * Math.PI);
+        const cameraDir = new THREE.Vector3()
+          .subVectors(state.camera.position, treePos)
+          .normalize();
+        treePosWithSpotlight = treePos.clone().add(cameraDir.multiplyScalar(spotlightWave * 6));
+        if (spotlight.flip) {
+          treeRotTarget = new THREE.Euler(treeRot.x, treeRot.y + Math.PI, treeRot.z);
+        }
+        targetScale = Math.max(targetScale, 1.0 + spotlightWave * 1.8);
+      }
+
+      // Interpolate Position (from floating scatter to tree)
+      groupRef.current.position.lerpVectors(finalScatterPos, treePosWithSpotlight, progress.current);
+
+      // Interpolate Rotation with floating tilt
+      // Note: scatterRot already includes the flip if isFlipped is true
+      const floatRotZ = Math.sin(time * 0.2 + index) * 0.1 * (1 - progress.current);
+      const currentRot = new THREE.Euler().setFromVector3(
+        new THREE.Vector3(scatterRot.x, scatterRot.y, scatterRot.z + floatRotZ).lerp(
+          new THREE.Vector3(treeRotTarget.x, treeRotTarget.y, treeRotTarget.z),
+          progress.current
+        )
+      );
+      groupRef.current.rotation.copy(currentRot);
     }
-
-    // Interpolate Position (from floating scatter to tree)
-    groupRef.current.position.lerpVectors(finalScatterPos, treePosWithSpotlight, progress.current);
-
-    // Interpolate Rotation with floating tilt
-    // Note: scatterRot already includes the flip if isFlipped is true
-    const floatRotZ = Math.sin(time * 0.2 + index) * 0.1 * (1 - progress.current);
-    const currentRot = new THREE.Euler().setFromVector3(
-      new THREE.Vector3(scatterRot.x, scatterRot.y, scatterRot.z + floatRotZ).lerp(
-        new THREE.Vector3(treeRotTarget.x, treeRotTarget.y, treeRotTarget.z),
-        progress.current
-      )
-    );
-    groupRef.current.rotation.copy(currentRot);
 
     // Scale
     // Smoothly interpolate scale for highlight effect
@@ -273,7 +304,33 @@ interface PhotoGalleryProps {
 }
 
 export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ appState }) => {
-  const { photos, highlightedPhotoId } = usePhotos();
+  const { photos, highlightedPhotoId, twoFingerActive, twoFingerPhotoId, twoFingerFlip } = usePhotos();
+  const fallbackTwoFingerRef = useRef<{ id: string | null; flip: boolean }>({ id: null, flip: false });
+
+  useEffect(() => {
+    if (!twoFingerActive) {
+      if (fallbackTwoFingerRef.current.id) {
+        console.debug('[two-finger] clear fallback selection');
+      }
+      fallbackTwoFingerRef.current = { id: null, flip: false };
+      return;
+    }
+    if (twoFingerPhotoId || photos.length === 0 || fallbackTwoFingerRef.current.id) {
+      if (twoFingerPhotoId) {
+        console.debug('[two-finger] using context selection', twoFingerPhotoId, { flip: twoFingerFlip });
+      }
+      return;
+    }
+    const randomIndex = Math.floor(Math.random() * photos.length);
+    fallbackTwoFingerRef.current = {
+      id: photos[randomIndex].id,
+      flip: Math.random() < 0.02,
+    };
+    console.debug('[two-finger] fallback selection', fallbackTwoFingerRef.current.id, { flip: fallbackTwoFingerRef.current.flip });
+  }, [twoFingerActive, twoFingerPhotoId, photos]);
+
+  const effectiveTwoFingerPhotoId = twoFingerPhotoId ?? fallbackTwoFingerRef.current.id;
+  const effectiveTwoFingerFlip = twoFingerPhotoId ? twoFingerFlip : fallbackTwoFingerRef.current.flip;
 
   // Only render if we have at least 5 photos
   if (photos.length < 5) {
@@ -290,6 +347,9 @@ export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ appState }) => {
           index={i}
           total={photos.length}
           appState={appState}
+          twoFingerActive={twoFingerActive}
+          twoFingerPhotoId={effectiveTwoFingerPhotoId}
+          twoFingerFlip={effectiveTwoFingerFlip}
         />
       ))}
     </group>

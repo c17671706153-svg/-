@@ -12,6 +12,10 @@ interface PhotoContextType {
   photos: PhotoData[];
   selectedPhoto: PhotoData | null;
   highlightedPhotoId: string | null;
+  oneFingerActive: boolean;
+  twoFingerActive: boolean;
+  twoFingerPhotoId: string | null;
+  twoFingerFlip: boolean;
   scatterFlowAt: number | null;
   treeSpotlight: TreeSpotlight | null;
   addPhotos: (files: File[]) => Promise<void>;
@@ -21,6 +25,8 @@ interface PhotoContextType {
   clearPhotos: () => void;
   selectPhoto: (photo: PhotoData | null) => void;
   highlightRandomPhoto: () => void;
+  setOneFingerActive: (active: boolean) => void;
+  setTwoFingerActive: (active: boolean) => void;
   triggerScatterFlow: () => void;
   triggerTreeSpotlight: () => void;
 }
@@ -104,6 +110,10 @@ export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialP
   });
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoData | null>(null);
   const [highlightedPhotoId, setHighlightedPhotoId] = useState<string | null>(null);
+  const [oneFingerActive, setOneFingerActive] = useState(false);
+  const [twoFingerActive, setTwoFingerActiveState] = useState(false);
+  const [twoFingerPhotoId, setTwoFingerPhotoId] = useState<string | null>(null);
+  const [twoFingerFlip, setTwoFingerFlip] = useState(false);
   const [scatterFlowAt, setScatterFlowAt] = useState<number | null>(null);
   const [treeSpotlight, setTreeSpotlight] = useState<TreeSpotlight | null>(null);
 
@@ -223,6 +233,34 @@ export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialP
     }, 5000);
   };
 
+  const setTwoFingerActive = (active: boolean) => {
+    if (active) {
+      setTwoFingerActiveState(true);
+      if (photos.length === 0) {
+        console.debug('[two-finger] active, but no photos yet');
+        return;
+      }
+      const randomIndex = Math.floor(Math.random() * photos.length);
+      const selectedId = photos[randomIndex].id;
+      const flip = Math.random() < 0.02;
+      setTwoFingerPhotoId(selectedId);
+      setTwoFingerFlip(flip);
+      console.debug('[two-finger] context selection', selectedId, { flip });
+      return;
+    }
+    setTwoFingerActiveState(false);
+    setTwoFingerPhotoId(null);
+    setTwoFingerFlip(false);
+    console.debug('[two-finger] cleared');
+  };
+
+  useEffect(() => {
+    if (!twoFingerActive || twoFingerPhotoId || photos.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * photos.length);
+    setTwoFingerPhotoId(photos[randomIndex].id);
+    setTwoFingerFlip(Math.random() < 0.02);
+  }, [twoFingerActive, twoFingerPhotoId, photos]);
+
   const triggerScatterFlow = () => {
     if (photos.length === 0) return;
     const startedAt = Date.now();
@@ -256,6 +294,10 @@ export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialP
         photos,
         selectedPhoto,
         highlightedPhotoId,
+        oneFingerActive,
+        twoFingerActive,
+        twoFingerPhotoId,
+        twoFingerFlip,
         scatterFlowAt,
         treeSpotlight,
         addPhotos,
@@ -265,6 +307,8 @@ export const PhotoProvider: React.FC<PhotoProviderProps> = ({ children, initialP
         clearPhotos,
         selectPhoto,
         highlightRandomPhoto,
+        setOneFingerActive,
+        setTwoFingerActive,
         triggerScatterFlow,
         triggerTreeSpotlight,
       }}

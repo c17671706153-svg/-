@@ -49,7 +49,7 @@ export const TreeGroup: React.FC<TreeGroupProps> = ({ appState }) => {
         type="ornament"
         color={COLORS.gold}
         emissive={COLORS.goldDark}
-        emissiveIntensity={0.5}
+        emissiveIntensity={0.8}
       />
 
       {/* Snowflakes - Dedicated Component */}

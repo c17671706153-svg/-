@@ -23,9 +23,7 @@ export const SnowParticles: React.FC<SnowParticlesProps> = ({ mode, count }) => 
     const dummy = useMemo(() => new THREE.Object3D(), []);
 
     const colorWhite = useMemo(() => new THREE.Color('#ffffff'), []);
-    const colorBlue = useMemo(() => new THREE.Color('#a5d8ff'), []); // Icy Blue
     const colorGold = useMemo(() => new THREE.Color('#FFD700'), []); // Warm Gold
-    const colorRed = useMemo(() => new THREE.Color('#FF4500'), []); // Orange Red
 
     // Particle State
     const particles = useMemo(() => {
@@ -61,12 +59,7 @@ export const SnowParticles: React.FC<SnowParticlesProps> = ({ mode, count }) => 
                 : (0.005 + Math.random() * 0.01); // Small sharp dot
 
             // Color mix
-            const rand = Math.random();
-            let color;
-            if (rand > 0.75) color = colorWhite;     // 25% White
-            else if (rand > 0.5) color = colorBlue;  // 25% Blue
-            else if (rand > 0.25) color = colorGold; // 25% Gold
-            else color = colorRed;                   // 25% Red
+            const color = Math.random() < 0.5 ? colorGold : colorWhite;
 
             data.push({
                 treePos,
@@ -82,7 +75,7 @@ export const SnowParticles: React.FC<SnowParticlesProps> = ({ mode, count }) => 
             });
         }
         return data;
-    }, [count, colorWhite, colorBlue, colorGold, colorRed]);
+    }, [count, colorWhite, colorGold]);
 
     useLayoutEffect(() => {
         if (!meshRef.current) return;
@@ -95,7 +88,7 @@ export const SnowParticles: React.FC<SnowParticlesProps> = ({ mode, count }) => 
         });
         meshRef.current.instanceMatrix.needsUpdate = true;
         if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-    }, [dummy, particles, colorRed, colorGold, colorBlue, colorWhite]);
+    }, [dummy, particles, colorGold, colorWhite]);
 
     useFrame((state, delta) => {
         if (!meshRef.current) return;
@@ -152,7 +145,7 @@ export const SnowParticles: React.FC<SnowParticlesProps> = ({ mode, count }) => 
                 roughness={1.0} // No specular, just emission
                 metalness={0.0}
                 emissive="#ffffff"
-                emissiveIntensity={2.0} // High glow
+                emissiveIntensity={2.4} // High glow
                 toneMapped={false} // Allow super bright colors
             />
         </instancedMesh>
